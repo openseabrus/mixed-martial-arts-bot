@@ -23,12 +23,18 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 const initializeEvents = async () => {
   savedEvents = readFights();
+  const eventDetails = await getEventDetails(savedEvents);
+
+  if (!eventDetails) {
+    return;
+  }
+
   const {
     eventsChanged,
     eventsReceived,
     eventsRemoved,
     fetchedEvents: fetched,
-  } = await getEventDetails(savedEvents);
+  } = eventDetails;
 
   processEventChanges(bot, CHAT_ID, {
     eventsChanged,
@@ -47,20 +53,25 @@ let fetchedEvents: FightEvent[];
 await initializeEvents();
 
 schedule.scheduleJob("polls", CRON, async () => {
-  fetchedEvents = await initializeEvents();
+  const initializedEvents = await initializeEvents();
 
-  console.log("jobs", eventJobs);
-  eventJobs.filter((job) => !!job).forEach((job) => job.cancel());
-  eventJobs = [];
+  if (initializedEvents) {
+    eventJobs.filter((job) => !!job).forEach((job) => job.cancel());
+    eventJobs = [];
 
-  fetchedEvents.forEach((event) => {
-    const job = schedule.scheduleJob(
-      event.id ?? event.eventName,
-      event.time.toDate(),
-      () => sendMessage(bot, CHAT_ID, "🚨🚨🚨🚨\n" + prettifyEvents([event])),
-    );
-    eventJobs.push(job);
-  });
+    const now = dayjs();
+    fetchedEvents
+      .filter((event) => event.time.isAfter(now))
+      .forEach((event) => {
+        const job = schedule.scheduleJob(
+          event.id ?? event.eventName,
+          event.time.toDate(),
+          () =>
+            sendMessage(bot, CHAT_ID, "🚨🚨🚨🚨\n" + prettifyEvents([event])),
+        );
+        eventJobs.push(job);
+      });
+  }
 });
 
 bot.onText(/\/list/, () => {
