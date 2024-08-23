@@ -29,3 +29,11 @@ jobs:
           name: bot
           path: |
             dist/main.js
+      - name: Build Docker image
+        run: |
+          docker build -t open1904/mixed-martial-arts-bot:latest .
+
+      - name: Push Docker image to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "open1904" --password-stdin
+          docker push open1904/mixed-martial-arts-bot:latest
